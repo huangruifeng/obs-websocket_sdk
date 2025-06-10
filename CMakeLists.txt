@@ -16,8 +16,6 @@ endif()
 
 find_package(Libwebsockets)
 find_package(nlohmann_json)
-find_package(base64)
-find_package(picosha2)
 
 add_library(obs_websocket_sdk STATIC
     src/collections.h
@@ -31,8 +29,6 @@ target_link_libraries(obs_websocket_sdk
     PRIVATE
     websockets
     nlohmann_json::nlohmann_json
-	aklomp::base64 
-	picosha2::picosha2
 )
 
 add_executable(obs_websocket_demo

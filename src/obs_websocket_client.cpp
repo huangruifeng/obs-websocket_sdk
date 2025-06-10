@@ -2,8 +2,6 @@
 #include <libwebsockets.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
-#include <picosha2.h>
-#include <libbase64.h>
 #include <chrono>
 
 using json = nlohmann::json;
@@ -32,24 +30,8 @@ void handle_hello(OBSWebSocketClient* client, json& data) {
     try {
         //todo support authentication
         if (data.contains("authentication")) {
-            
-            auto auth_data = data["authentication"];
-            std::string challenge = auth_data["challenge"];
-            std::string salt = auth_data["salt"];
-            std::string salted_password = client->_pwd + salt;
-            std::string hash_hex_str;
-            char out[512] = { 0 };
-            size_t out_len = 0;
-            picosha2::hash256_hex_string(salted_password, hash_hex_str);
-            base64_encode(hash_hex_str.c_str(),hash_hex_str.size(),out,&out_len,0);
-            std::string to_hash = std::string(out,out_len) + challenge;
-            std::string final;
-            picosha2::hash256_hex_string(to_hash,final);
-            memset(out, 0, sizeof(out));
-            out_len = 0;
-            base64_encode(final.c_str(), final.size(), out, &out_len, 0);
-
-            client->sendHello(1,"");
+            //not support auth.
+            std::cout << "not support authentication." << std::endl;
         }
         client->sendHello(1,"");
     }
@@ -211,11 +193,11 @@ void OBSWebSocketClient::disconnect(const std::function<void(bool)>& callback) {
 
 void OBSWebSocketClient::startStreaming(const std::function<void(int, bool)>& callback) {
     json request = {
-    {"op", 6},
-    {"d", {
-        {"requestType","StartStream"},
-        {"requestId",""}
-    }}
+        {"op", 6},
+        {"d", {
+            {"requestType","StartStream"},
+            {"requestId",""}
+        }}
     };
     cacheApiCallback(&request, callback);
     sendRequest(&request);
@@ -253,7 +235,7 @@ void OBSWebSocketClient::callCacheCallback(const std::string& requestId,int erro
 void OBSWebSocketClient::sendHello(int version,const std::string& auth)
 {
     std::string requestStr;
-    if (auth.empty()) {
+    if (!auth.empty()) {
         json msg = {
             {"op", 1},
             {"d", {
