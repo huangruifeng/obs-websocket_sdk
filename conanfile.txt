@@ -1,0 +1,9 @@
+[requires]
+libwebsockets/4.3.3
+nlohmann_json/3.12.0
+base64/0.5.2
+picosha2/1.0.0
+
+[generators]
+CMakeDeps
+CMakeToolchain
