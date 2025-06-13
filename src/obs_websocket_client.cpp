@@ -50,9 +50,10 @@ void handle_connected(OBSWebSocketClient* client, json& data) {
 
 void handle_operator(OBSWebSocketClient* client, json& data) {
     try {
-        auto eventData = data["eventData"];
-        if (eventData["eventType"] == "StreamStateChanged")
+        
+        if (data["eventType"] == "StreamStateChanged")
         {
+            auto eventData = data["eventData"];
             auto state = eventData["outputState"];
             if (state == "OBS_WEBSOCKET_OUTPUT_STARTED") {
                 client->for_each([&](std::shared_ptr<OBSWebSocketClientObserver>& ptr) {
@@ -83,7 +84,17 @@ void handle_operator(OBSWebSocketClient* client, json& data) {
 
 void handle_response(OBSWebSocketClient* client, json& data) {
     try {
-        client->callCacheCallback(data["requestId"],data["requestStatus"]["code"], data["requestStatus"]["result"]);
+        if (data["requestType"] == "GetStreamStatus") {
+            client->for_each([&](std::shared_ptr<OBSWebSocketClientObserver>& ptr) {
+                OBSWebSocketClientObserver::Status s;
+                s.StreamReconnecting = data["responseData"]["outputReconnecting"];
+                s.StreamStarted = data["responseData"]["outputActive"];
+                ptr->OnstreamStatus(s);
+            });
+        }
+        else {
+            client->callCacheCallback(data["requestId"], data["requestStatus"]["code"], data["requestStatus"]["result"]);
+        }
     }
     catch (std::exception& e) {
         //LOG_WARNING(e.what);
@@ -215,6 +226,19 @@ void OBSWebSocketClient::stopStreaming(const std::function<void(int, bool)>& cal
     sendRequest(&request);
 }
 
+void OBSWebSocketClient::requestStreamStatus()
+{
+    json request = {
+    {"op", 6},
+    {"d", {
+        {"requestType","GetStreamStatus"},
+        {"requestId",""}
+    }}
+    };
+    cacheApiCallback(&request,nullptr);
+    sendRequest(&request);
+}
+
 
 void OBSWebSocketClient::callCacheCallback(const std::string& requestId,int errorCode,bool successed)
 {
@@ -242,7 +266,7 @@ void OBSWebSocketClient::sendHello(int version,const std::string& auth)
                 {"rpcVersion", version},
                 {"authentication",auth}
                 }
-            }
+            } 
         };
         requestStr = msg.dump();
     }
@@ -279,9 +303,13 @@ void OBSWebSocketClient::cacheApiCallback(const void* request,const std::functio
     auto id = std::to_string(generateTimestampMs());
     auto& r = *(json*)request;
     r["d"]["requestId"] = id;
-    std::lock_guard<std::mutex> lock(_apiMutex);
-    _apiCache[id] = callback;
+    if (callback) {
+        std::lock_guard<std::mutex> lock(_apiMutex);
+        _apiCache[id] = callback;
+    }
 }
+
+
 
 void OBSWebSocketClient::run()
 {
@@ -340,4 +368,8 @@ void OBSWebSocketClient::sendRequest(const void* request) {
         lws_write((lws*)_wsi, buf + LWS_PRE, requestStr.size(), LWS_WRITE_TEXT);
         delete[] buf;
     });
+}
+
+std::shared_ptr<OBSWebSocket> CreateOBSWebSocketClient(const std::string& serverUri) {
+    return std::make_shared<OBSWebSocketClient>(serverUri);
 }

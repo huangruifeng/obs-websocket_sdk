@@ -8,19 +8,10 @@
 #include <map>
 #include <condition_variable>
 #include "collections.h"
+#include "obs_websocket.h"
 
-class OBSWebSocketClientObserver {
-public:
-    virtual ~OBSWebSocketClientObserver() = default;
-    virtual void OnConnected(){}
-    virtual void OnDisconnected(){}
-    virtual void OnStreamStarting(){}
-    virtual void OnStreamStarted(){}
-    virtual void OnStreamStopping(){}
-    virtual void OnstreamStopped(){}
-};
 
-class OBSWebSocketClient {
+class OBSWebSocketClient : public  OBSWebSocket {
 public:
     OBSWebSocketClient(const std::string& serverUri);
     ~OBSWebSocketClient();
@@ -37,21 +28,22 @@ public:
         _pwd = pd;
     }
 
-    void connect(const std::function<void(bool)>& callback);
-    void disconnect(const std::function<void(bool)>& callback);
-    void startStreaming(const std::function<void(int,bool)>& callback);
-    void stopStreaming(const std::function<void(int, bool)>& callback);
+    void connect(const std::function<void(bool)>& callback) override;
+    void disconnect(const std::function<void(bool)>& callback) override;
+    void startStreaming(const std::function<void(int,bool)>& callback)override;
+    void stopStreaming(const std::function<void(int, bool)>& callback)override;
+    void requestStreamStatus() override;
 
 
     int32_t for_each(const std::function<void(std::shared_ptr<OBSWebSocketClientObserver>& t)> fun) {
-        _observes.Foreach(fun);
+        return _observes.Foreach(fun);
     }
 
-    void add_observer(const std::shared_ptr<OBSWebSocketClientObserver>& obs) {
+    void add_observer(const std::shared_ptr<OBSWebSocketClientObserver>& obs)override {
         _observes.AddElement(obs);
     }
 
-    void remove_observer(const std::shared_ptr<OBSWebSocketClientObserver>& obs) {
+    void remove_observer(const std::shared_ptr<OBSWebSocketClientObserver>& obs)override {
         _observes.RemoveElement(obs);
     }
 

@@ -4,6 +4,7 @@ project(obs_websocket_sdk)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+
 if(MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Zi")
     set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Zi")
@@ -17,10 +18,11 @@ endif()
 find_package(Libwebsockets)
 find_package(nlohmann_json)
 
-add_library(obs_websocket_sdk STATIC
+add_library(obs_websocket_sdk SHARED
     src/collections.h
     src/obs_websocket_client.cpp
     src/obs_websocket_client.h
+	src/obs_websocket.h
 )
 
 
