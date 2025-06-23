@@ -1,10 +1,24 @@
 #include "obs_websocket_client.h"
-#include <libwebsockets.h>
 #include <nlohmann/json.hpp>
 #include <iostream>
 #include <chrono>
+#include "sha_256.h"
+#include "base64.h"
 
 using json = nlohmann::json;
+
+std::string calculateObsAuth(const std::string& password, const std::string& salt, const std::string& challenge) {
+    // Step 1: secret = SHA256(password + salt)
+    std::string secretHash = SHA256::hash(password + salt);
+
+    std::string secret = Base64::encode(secretHash);
+
+    // Step 2: authHash = SHA256(secret + challenge)
+    std::string authHash = SHA256::hash(secret + challenge);
+
+    // Step 3: Base64 encode authHash
+    return Base64::encode(authHash);
+}
 
 OBSWebSocketClient::OBSWebSocketClient(const std::string& serverUri) :_state(State::Disconnected),_running(false), _serverUri(serverUri), _context(nullptr), _wsi(nullptr) {
     _running = true;
@@ -30,10 +44,11 @@ void handle_hello(OBSWebSocketClient* client, json& data) {
     try {
         //todo support authentication
         if (data.contains("authentication")) {
-            //not support auth.
-            std::cout << "not support authentication." << std::endl;
+            client->sendHello(1, calculateObsAuth(client->_pwd,data["authentication"]["salt"], data["authentication"]["challenge"]));
         }
-        client->sendHello(1,"");
+        else {
+            client->sendHello(1, "");
+        }
     }
     catch (std::exception& e) {
         //LOG_WARNING(e.what);
@@ -103,6 +118,8 @@ void handle_response(OBSWebSocketClient* client, json& data) {
 
 static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* user, void* in, size_t len) {
     OBSWebSocketClient* client = static_cast<OBSWebSocketClient*>(user);
+    std::string message(static_cast<char*>(in), len);
+    //std::cout << message << std::endl;
     switch (reason) {
     case LWS_CALLBACK_CLIENT_ESTABLISHED:
         std::cout << "WebSocket connection established." << std::endl;
@@ -130,6 +147,12 @@ static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* use
     case LWS_CALLBACK_CLIENT_WRITEABLE:
         // 保持连接活跃
         break;
+    case LWS_CALLBACK_WS_PEER_INITIATED_CLOSE: 
+        {
+        std::string message(static_cast<char*>(in), len);
+        std::cout << message << std::endl;
+        }
+        break;
     case LWS_CALLBACK_WSI_DESTROY:
         std::cout << "WebSocket disconnect." << std::endl;
         client->for_each([](std::shared_ptr<OBSWebSocketClientObserver>& ptr) {
@@ -144,7 +167,7 @@ static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* use
 }
 
 void OBSWebSocketClient::connect(const std::function<void(bool)>& callback) {
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<Mutex> lock(_mutex);
     _taskQueue.push_back([this, callback]() {
 
         if (_state != State::Disconnected) {
@@ -189,7 +212,7 @@ void OBSWebSocketClient::connect(const std::function<void(bool)>& callback) {
 }
 
 void OBSWebSocketClient::disconnect(const std::function<void(bool)>& callback) {
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<Mutex> lock(_mutex);
     _taskQueue.push_back([this,callback]() {
         if (_wsi) {
             lws_callback_on_writable((lws*)_wsi);
@@ -244,7 +267,7 @@ void OBSWebSocketClient::callCacheCallback(const std::string& requestId,int erro
 {
     std::function<void(int, bool)> fun = nullptr;
     {
-        std::lock_guard<std::mutex> lock(_apiMutex);
+        std::lock_guard<Mutex> lock(_apiMutex);
         auto it = _apiCache.find(requestId);
         if (it != _apiCache.end()) {
             fun = it->second;
@@ -291,7 +314,7 @@ void OBSWebSocketClient::sendHello(int version,const std::string& auth)
 
 void OBSWebSocketClient::clearAllCallback()
 {
-    std::lock_guard<std::mutex> lock(_apiMutex);
+    std::lock_guard<Mutex> lock(_apiMutex);
     for (auto& it : _apiCache) {
         it.second(-5, false);
     }
@@ -304,12 +327,10 @@ void OBSWebSocketClient::cacheApiCallback(const void* request,const std::functio
     auto& r = *(json*)request;
     r["d"]["requestId"] = id;
     if (callback) {
-        std::lock_guard<std::mutex> lock(_apiMutex);
+        std::lock_guard<Mutex> lock(_apiMutex);
         _apiCache[id] = callback;
     }
 }
-
-
 
 void OBSWebSocketClient::run()
 {
@@ -355,7 +376,7 @@ void OBSWebSocketClient::run()
 
 void OBSWebSocketClient::sendRequest(const void* request) {
     std::string requestStr = ((json*)request)->dump();
-    std::lock_guard<std::mutex> lock(_mutex);
+    std::lock_guard<Mutex> lock(_mutex);
     _taskQueue.push_back([this, requestStr]() {
 
         if (_state != State::Connected) {

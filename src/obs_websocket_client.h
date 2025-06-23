@@ -1,18 +1,53 @@
 #pragma once
+#include <libwebsockets.h>
+#if _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include<mutex>
+#endif
 #include <string>
 #include <functional>
 #include <memory>
 #include <thread>
 #include <deque>
-#include <mutex>
 #include <map>
 #include <condition_variable>
 #include "collections.h"
 #include "obs_websocket.h"
 
 
+#if _WIN32
+class WindowsMutex {
+public:
+    WindowsMutex() {
+        InitializeCriticalSection(&criticalSection);
+    }
+
+    ~WindowsMutex() {
+        DeleteCriticalSection(&criticalSection);
+    }
+
+    void lock() {
+        EnterCriticalSection(&criticalSection);
+    }
+
+    void unlock() {
+        LeaveCriticalSection(&criticalSection);
+    }
+
+private:
+    CRITICAL_SECTION criticalSection;
+};
+#endif
+
 class OBSWebSocketClient : public  OBSWebSocket {
 public:
+#if _WIN32
+    using Mutex = WindowsMutex;
+#else
+    using Mutex = std::mutex;
+#endif
     OBSWebSocketClient(const std::string& serverUri);
     ~OBSWebSocketClient();
 
@@ -24,10 +59,7 @@ public:
     State _state;
     std::string _pwd;
 
-    void setPassword(const std::string& pd) {
-        _pwd = pd;
-    }
-
+    void set_password(const std::string& pwd) override { _pwd = pwd; };
     void connect(const std::function<void(bool)>& callback) override;
     void disconnect(const std::function<void(bool)>& callback) override;
     void startStreaming(const std::function<void(int,bool)>& callback)override;
@@ -55,14 +87,14 @@ protected:
     void sendRequest(const void* request);
     void run();
 private:
-    std::mutex _apiMutex;
+    Mutex _apiMutex;
     std::map <std::string, std::function<void(int, bool)>> _apiCache;
     std::atomic<bool> _running;
     std::string _serverUri;
-    std::mutex _mutex;
+    Mutex _mutex;
     std::deque<std::function<void()>> _taskQueue;
     std::thread _thread;
-    void* _context;
+    lws_context* _context;
     void* _wsi;
-    hrtc::Collections<OBSWebSocketClientObserver, std::shared_ptr, hrtc::MultiThreaded> _observes;
+    hrtc::Collections<OBSWebSocketClientObserver, std::shared_ptr, Mutex> _observes;
 };

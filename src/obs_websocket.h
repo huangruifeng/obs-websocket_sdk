@@ -23,15 +23,13 @@ public:
     virtual void OnStreamStopping() {}
     virtual void OnstreamStopped() {}
     virtual void OnstreamStatus(const Status& status){}
-
-
 };
 
 
 class OBS_WEBSOCKET_SDK_EXPORT OBSWebSocket {
 public:
     ~OBSWebSocket() = default;
-    
+    virtual void set_password(const std::string& pwd) = 0;
     virtual void connect(const std::function<void(bool)>& callback) = 0;
     virtual void disconnect(const std::function<void(bool)>& callback) = 0;
     virtual void startStreaming(const std::function<void(int, bool)>& callback) = 0;
