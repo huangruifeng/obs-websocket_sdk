@@ -52,16 +52,19 @@ cmake --build .
 
 ## 使用示例
 ```cpp
-#include "obs_websocket_client.h"
+#include "obs_websocket.h"
+#include <iostream>
 
-// 创建客户端实例
-OBSWebSocketClient client("ws://localhost:4444");
-client.setPassword("your_password");
+int main() {
+    // 创建客户端实例
+    auto client = CreateOBSWebSocketClient("ws://localhost:45600");
 
-// 连接OBS
-client.connect([](bool success) {
-    // 连接结果处理
-});
+    client->set_password("hrf123456");
+    // 连接OBS
+    client->connect(std::function<void(bool)>([](bool r) {
+        std::cout << "send connect: " << r << std::endl;
+    }));
+}
 ```
 
 ## 许可证

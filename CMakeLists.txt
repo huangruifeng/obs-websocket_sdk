@@ -24,7 +24,7 @@ add_library(obs_websocket_sdk SHARED
     src/obs_websocket_client.h
 	src/obs_websocket.h
 	src/sha_256.h
-	src/base64.h
+	src/base64.h
 )
 
 
