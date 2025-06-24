@@ -118,7 +118,6 @@ void handle_response(OBSWebSocketClient* client, json& data) {
 
 static int callback(struct lws* wsi, enum lws_callback_reasons reason, void* user, void* in, size_t len) {
     OBSWebSocketClient* client = static_cast<OBSWebSocketClient*>(user);
-    std::string message(static_cast<char*>(in), len);
     //std::cout << message << std::endl;
     switch (reason) {
     case LWS_CALLBACK_CLIENT_ESTABLISHED:
